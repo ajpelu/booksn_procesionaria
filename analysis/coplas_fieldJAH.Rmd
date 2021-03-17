@@ -1,0 +1,119 @@
+---
+title: "Parcelas JAH - coplas"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("tidyverse")
+library("here")
+library("sf")
+library("readxl")
+```
+
+# Datos de parcelas de JAH 
+
+- Quitamos las parcelas que no tienen lat, long 
+
+```{r}
+# Read all sheets from excel 
+raw_jah <- read_excel(here::here("data_raw/parcelas_JAH.xlsx")) %>% 
+  filter(!is.na(Lat)) %>% 
+  rename(lat = Lat, long = Long, number = `nº`, id = `#`)
+```
+
+- Convertir a spatial sf 
+
+```{r}
+raw_jah <- st_as_sf(raw_jah, coords = c('long', 'lat'), crs=4326)
+
+st_write(raw_jah, here::here("data_raw/geoinfo/parcelas_jah.shp"))
+
+plot(raw_jah["sitio"])
+```
+
+```{r}
+rodales <- st_read(here::here("data_raw/geoinfo/rodales_stats.shp")) 
+plot(rodales["Codigo"])
+plot(raw_jah["sitio"], add=TRUE)
+ 
+```
+
+```{r}
+out <- st_intersection(raw_jah, rodales)
+
+
+
+out <- st_join(raw_jah, rodales, join = st_within)
+```
+
+
+
+
+
+
+
+- Leemos el archivo que publicamos en GBIF 
+```{r}
+# https://ipt.gbif.es/archive.do?r=coplas&v=2.4
+f <- finch::dwca_read("https://ipt.gbif.es/archive.do?r=coplas&v=2.4")
+
+# Read the data files
+eventRaw <- read_delim(f$data[1], delim = "\t") # event.txt
+occRaw <- read_delim(f$data[2], delim = "\t") # occurrence.txt
+mofRaw <- read_delim(f$data[3], delim = "\t") # extendedmeasurementorfact.txt
+
+rodales <- st_read(here::here("data_raw/geoinfo/rodales_stats.shp")) 
+rodal_elev <- rodales %>% st_drop_geometry() %>% 
+  rename_all(tolower) %>% 
+  dplyr::select(code = codigo, 
+                perim = perimetro, 
+                elev_mean = mean) %>% 
+  mutate(across(where(is.numeric), round, 2))
+  
+
+parcelas <- eventRaw %>% 
+  mutate(code = stringr::str_remove(eventID, "(\\-).*"),
+         area_ha = sampleSizeValue/10000) %>% 
+  dplyr::select(code,
+                area_ha,
+                prov = stateProvince, 
+                elev_min = minimumElevationInMeters,
+                elev_max = maximumElevationInMeters,
+                lat = decimalLatitude,
+                long = decimalLongitude) %>% unique() %>% 
+  inner_join(rodal_elev) %>% 
+  mutate(
+    elevF = case_when(
+      elev_mean <= 600 ~ "verlow",
+      elev_mean >600 & elev_mean <=1200 ~ "low",
+      elev_mean >1200 & elev_mean <=1700 ~ "medium",
+      elev_mean >1700 ~ "high"
+    )
+  )
+
+```
+
+
+Le añadimos los pinos a la parcela
+
+```{r}
+coplas_sp <- coplas %>% inner_join(parcela_sp) %>% 
+  inner_join(parcelas) %>% 
+  dplyr::relocate(code, prov, area_ha, sp, elev_mean, elev_min, elev_max, elevF, perim, lat, long, `1993`:`2015`, `2016`, `2017`, `2018`, `2019`)
+
+write_csv(coplas_sp, here::here("data/coplas2019.csv"))
+```
+
+
+
+
+
+
+
+ 
