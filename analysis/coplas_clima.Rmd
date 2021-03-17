@@ -1,0 +1,29 @@
+---
+title: "coplas_clima"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("tidyverse")
+library("here")
+library("finch")
+library("sf")
+library("readxl")
+```
+
+# Objetivo
+- Ver las estaciones más cercanas de clima 
+- Ojo voy a centrarlo solo en GR y AL 
+
+
+
+
+
+
+
+
+
