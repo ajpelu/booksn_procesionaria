@@ -12,8 +12,10 @@
 
 - Obtener datos de las estaciones cercanas a las parcelas y ver la evolución
 
-- Regressiones entre series temporales categorizadas por altitud y series temporales de sequía, series de temperatura, NDIV??
+- Regressiones entre series temporales categorizadas por altitud y series temporales de sequía, series de temperatura, NDVI??
 
 
+- Datos de formaciones
+https://laboratoriorediam.cica.es/geonetwork/srv/spa/catalog.search#/metadata/a25e289b-4d4d-49fc-af06-b64adf29e81b
 
 
