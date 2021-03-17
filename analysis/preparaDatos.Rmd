@@ -1,0 +1,233 @@
+---
+title: "prepara datos"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("tidyverse")
+library("here")
+library("finch")
+library("sf")
+library("readxl")
+```
+
+# Datos de parcelas 
+
+- Leemos el archivo que publicamos en GBIF 
+```{r}
+# https://ipt.gbif.es/archive.do?r=coplas&v=2.4
+f <- finch::dwca_read("https://ipt.gbif.es/archive.do?r=coplas&v=2.4")
+
+# Read the data files
+eventRaw <- read_delim(f$data[1], delim = "\t") # event.txt
+occRaw <- read_delim(f$data[2], delim = "\t") # occurrence.txt
+mofRaw <- read_delim(f$data[3], delim = "\t") # extendedmeasurementorfact.txt
+
+rodales <- st_read(here::here("data_raw/geoinfo/rodales_stats.shp")) 
+rodal_elev <- rodales %>% st_drop_geometry() %>% 
+  rename_all(tolower) %>% 
+  dplyr::select(code = codigo, 
+                perim = perimetro, 
+                elev_mean = mean) %>% 
+  mutate(across(where(is.numeric), round, 2))
+  
+
+parcelas <- eventRaw %>% 
+  mutate(code = stringr::str_remove(eventID, "(\\-).*"),
+         area_ha = sampleSizeValue/10000) %>% 
+  dplyr::select(code,
+                area_ha,
+                prov = stateProvince, 
+                elev_min = minimumElevationInMeters,
+                elev_max = maximumElevationInMeters,
+                lat = decimalLatitude,
+                long = decimalLongitude) %>% unique() %>% 
+  inner_join(rodal_elev) %>% 
+  mutate(
+    elevF = case_when(
+      elev_mean <= 600 ~ "verlow",
+      elev_mean >600 & elev_mean <=1200 ~ "low",
+      elev_mean >1200 & elev_mean <=1700 ~ "medium",
+      elev_mean >1700 ~ "high"
+    )
+  )
+
+```
+
+
+## Datos de Especies de pinos
+
+Hemos llevado a cabo la asignación de los pinos por dos vías: 
+
+- 1. Cruzar cobertura de coplas con cobertura de pinos
+
+
+```{r, eval=FALSE}
+ph <- st_read(here::here("data_raw/geoinfo/dist_pinus/Phalepensis.shp")) %>% 
+  mutate(pinus = "halepensis")
+
+rodales_t <- st_make_valid(rodales) %>% st_transform(crs = st_crs(ph)) 
+
+parcelas_centroid <- parcelas %>% dplyr::select(code, lat, long) %>% 
+  st_as_sf(coords = c("long", "lat"), crs = 4326) %>% 
+  st_transform(crs = st_crs(ph)) 
+# st_write(parcelas_centroid, here::here(here::here("data_raw/geoinfo/parcelas_centroid.shp")), 
+#          append = FALSE)
+
+pn <- st_read(here::here("data_raw/geoinfo/dist_pinus/Pnigra.shp")) %>% 
+  mutate(pinus = "nigra")
+pp <- st_read(here::here("data_raw/geoinfo/dist_pinus/Ppinaster.shp")) %>% 
+  mutate(pinus = "pinaster")
+ps <- st_read(here::here("data_raw/geoinfo/dist_pinus/Psylvestris.shp")) %>% 
+  mutate(pinus = "sylvestris")
+ppinea <- st_read(here::here("data_raw/geoinfo/dist_pinus/Ppinea.shp")) %>% 
+  mutate(pinus = "pinea")
+pr <- st_read(here::here("data_raw/geoinfo/dist_pinus/Pradiata.shp")) %>% 
+  mutate(pinus = "radiata")
+pc <- st_read(here::here("data_raw/geoinfo/dist_pinus/Pcanariensis.shp")) %>% 
+  mutate(pinus = "canariensis")
+
+
+iph <- st_intersection(st_make_valid(ph), rodales_t) %>% st_drop_geometry() %>% 
+  dplyr::select(Codigo, pinus) %>% unique() 
+
+ipp <- st_intersection(st_make_valid(pp), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+ips <- st_intersection(st_make_valid(ps), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+ipn <- st_intersection(st_make_valid(pn), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+ippinea <- st_intersection(st_make_valid(ppinea), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+ipc <- st_intersection(st_make_valid(pc), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+ipr <- st_intersection(st_make_valid(pr), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+
+
+u <- bind_rows(iph, ipp, ips, ipn, ipc, ipr, ippinea)
+
+u <- u %>% mutate(v = 1) %>% 
+  pivot_wider(names_from = pinus, values_from = v)
+
+
+i <- iph %>% dplyr::select(Codigo, pinus) %>% unique()
+
+```
+
+
+- 2. 
+
+```{r}
+load(here::here("data_raw/mapa_rodales.RData"))
+
+parcela_sp <- mapa.rodales@data %>% dplyr::select(code = N.rodal, sp = Especie)
+
+```
+
+
+
+
+
+
+## Datos de infestación 
+
+```{r}
+raw_infesta <- read_excel() 
+
+# Read all sheets from excel 
+path <- here::here("data_raw/Grados_Infestacion_1992_2019.xlsx")
+raw_infesta <- path %>% 
+  excel_sheets() %>% 
+  set_names() %>% 
+  map_df(read_excel, path = path) 
+
+names(raw_infesta) <- c("code","infestacion","year")
+```
+
+Parece que hay un problema con que algunas parcelas están llamadas de diferente forma con "-" y sin "-"
+
+```{r}
+raw_infesta <- raw_infesta %>% 
+  mutate(code = stringr::str_remove_all(code, "-"))
+```
+
+¿Cuantos plots? 
+
+```{r}
+length(unique(raw_infesta$code))
+```
+
+Parece que hay duplicados. Vamos a buscarlos: 
+- Creamos un campo codeyear (code+year)
+- Buscamos duplicados, esto es para una misma fecha + parcela varios valores de infestacion
+
+```{r}
+duplicados <- raw_infesta %>% 
+  unite("codeyear", c(code,year), sep="-", remove=FALSE) %>% 
+  group_by(codeyear) %>% 
+  count() %>% 
+  filter(n>1) %>% 
+  separate(codeyear, c("code", "year"), sep="-", remove=FALSE) 
+
+parcelas_duplicadas <- duplicados %>% 
+  dplyr::select(code) %>% unique()
+```
+
+Vamos a usar los datos que ya teníamos publicados en GBIF, que parece que tenian solucionado el filtrado de datos y le vamos a añadir nuevos datos (desde 2015 a la actualidad)
+
+```{r}
+infesta2015 <- mofRaw %>% 
+  mutate(
+    code = stringr::str_remove(id, "(\\-).*")) %>% 
+  dplyr::select(
+  code,
+  infestacion = measurementValue,
+  year = measurementDeterminedDate) %>%
+  pivot_wider(names_from = year, 
+              values_from = infestacion)
+
+```
+
+De los datos nuevos filtramos > 2015 
+
+```{r}
+raw_infesta2019 <- raw_infesta %>% filter(year > 2015) 
+
+
+duplicados2019 <- raw_infesta %>% 
+  filter(year > 2015) %>% 
+  unite("codeyear", c(code,year), sep="-", remove=FALSE) %>% 
+  group_by(codeyear) %>% 
+  count() %>% 
+  filter(n>1) %>% 
+  separate(codeyear, c("code", "year"), sep="-", remove=FALSE) 
+
+parcelas_duplicadas2019 <- duplicados2019 %>% 
+  dplyr::select(code) %>% unique()
+
+
+infesta2019 <- raw_infesta %>% 
+  filter(year > 2015) %>%
+  pivot_wider(names_from = year, 
+              values_from = infestacion, 
+              values_fn = {min})
+```
+
+
+
+```{r}
+coplas <- infesta2015 %>% 
+  left_join(infesta2019) 
+```
+
+
+
+
+ 
