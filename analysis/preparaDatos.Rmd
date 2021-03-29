@@ -60,86 +60,8 @@ parcelas <- eventRaw %>%
 
 ```
 
-
-## Datos de Especies de pinos
-
-Hemos llevado a cabo la asignación de los pinos por dos vías: 
-
-- 1. Cruzar cobertura de coplas con cobertura de pinos
-
-
-```{r, eval=FALSE}
-ph <- st_read(here::here("data_raw/geoinfo/dist_pinus/Phalepensis.shp")) %>% 
-  mutate(pinus = "halepensis")
-
-rodales_t <- st_make_valid(rodales) %>% st_transform(crs = st_crs(ph)) 
-
-parcelas_centroid <- parcelas %>% dplyr::select(code, lat, long) %>% 
-  st_as_sf(coords = c("long", "lat"), crs = 4326) %>% 
-  st_transform(crs = st_crs(ph)) 
-# st_write(parcelas_centroid, here::here(here::here("data_raw/geoinfo/parcelas_centroid.shp")), 
-#          append = FALSE)
-
-pn <- st_read(here::here("data_raw/geoinfo/dist_pinus/Pnigra.shp")) %>% 
-  mutate(pinus = "nigra")
-pp <- st_read(here::here("data_raw/geoinfo/dist_pinus/Ppinaster.shp")) %>% 
-  mutate(pinus = "pinaster")
-ps <- st_read(here::here("data_raw/geoinfo/dist_pinus/Psylvestris.shp")) %>% 
-  mutate(pinus = "sylvestris")
-ppinea <- st_read(here::here("data_raw/geoinfo/dist_pinus/Ppinea.shp")) %>% 
-  mutate(pinus = "pinea")
-pr <- st_read(here::here("data_raw/geoinfo/dist_pinus/Pradiata.shp")) %>% 
-  mutate(pinus = "radiata")
-pc <- st_read(here::here("data_raw/geoinfo/dist_pinus/Pcanariensis.shp")) %>% 
-  mutate(pinus = "canariensis")
-
-
-iph <- st_intersection(st_make_valid(ph), rodales_t) %>% st_drop_geometry() %>% 
-  dplyr::select(Codigo, pinus) %>% unique() 
-
-ipp <- st_intersection(st_make_valid(pp), rodales_t) %>% st_drop_geometry() %>% 
-    dplyr::select(Codigo, pinus) %>% unique() 
-ips <- st_intersection(st_make_valid(ps), rodales_t) %>% st_drop_geometry() %>% 
-    dplyr::select(Codigo, pinus) %>% unique() 
-ipn <- st_intersection(st_make_valid(pn), rodales_t) %>% st_drop_geometry() %>% 
-    dplyr::select(Codigo, pinus) %>% unique() 
-ippinea <- st_intersection(st_make_valid(ppinea), rodales_t) %>% st_drop_geometry() %>% 
-    dplyr::select(Codigo, pinus) %>% unique() 
-ipc <- st_intersection(st_make_valid(pc), rodales_t) %>% st_drop_geometry() %>% 
-    dplyr::select(Codigo, pinus) %>% unique() 
-ipr <- st_intersection(st_make_valid(pr), rodales_t) %>% st_drop_geometry() %>% 
-    dplyr::select(Codigo, pinus) %>% unique() 
-
-
-u <- bind_rows(iph, ipp, ips, ipn, ipc, ipr, ippinea)
-
-u <- u %>% mutate(v = 1) %>% 
-  pivot_wider(names_from = pinus, values_from = v)
-
-
-i <- iph %>% dplyr::select(Codigo, pinus) %>% unique()
-
-```
-
-
-- 2. 
-
-```{r}
-load(here::here("data_raw/mapa_rodales.RData"))
-
-parcela_sp <- mapa.rodales@data %>% dplyr::select(code = N.rodal, sp = Especie)
-
-```
-
-
-
-
-
-
 ## Datos de infestación 
-
 ```{r}
-raw_infesta <- read_excel() 
 
 # Read all sheets from excel 
 path <- here::here("data_raw/Grados_Infestacion_1992_2019.xlsx")
@@ -201,7 +123,7 @@ De los datos nuevos filtramos > 2015
 raw_infesta2019 <- raw_infesta %>% filter(year > 2015) 
 
 
-duplicados2019 <- raw_infesta %>% 
+duplicados2019 <- raw_infesta2019 %>% 
   filter(year > 2015) %>% 
   unite("codeyear", c(code,year), sep="-", remove=FALSE) %>% 
   group_by(codeyear) %>% 
@@ -212,8 +134,7 @@ duplicados2019 <- raw_infesta %>%
 parcelas_duplicadas2019 <- duplicados2019 %>% 
   dplyr::select(code) %>% unique()
 
-
-infesta2019 <- raw_infesta %>% 
+infesta2019 <- raw_infesta2019 %>% 
   filter(year > 2015) %>%
   pivot_wider(names_from = year, 
               values_from = infestacion, 
@@ -221,11 +142,96 @@ infesta2019 <- raw_infesta %>%
 ```
 
 
-
 ```{r}
 coplas <- infesta2015 %>% 
   left_join(infesta2019) 
 ```
+
+## Datos de Especies de pinos
+
+Hemos llevado a cabo la asignación de los pinos por dos vías: 
+
+- 1. Cruzar cobertura de coplas con cobertura de pinos ([issue](https://github.com/ajpelu/booksn_procesionaria/issues/1))
+
+Hemos usado, datos de formaciones de: 
+https://laboratoriorediam.cica.es/geonetwork/srv/spa/catalog.search#/metadata/a25e289b-4d4d-49fc-af06-b64adf29e81b
+
+
+```{r, eval=FALSE}
+ph <- st_read(here::here("data_raw/geoinfo/dist_pinus/Phalepensis.shp")) %>% 
+  mutate(pinus = "halepensis")
+
+rodales_t <- st_make_valid(rodales) %>% st_transform(crs = st_crs(ph)) 
+
+parcelas_centroid <- parcelas %>% dplyr::select(code, lat, long) %>% 
+  st_as_sf(coords = c("long", "lat"), crs = 4326) %>% 
+  st_transform(crs = st_crs(ph)) 
+# st_write(parcelas_centroid, here::here(here::here("data_raw/geoinfo/parcelas_centroid.shp")), 
+#          append = FALSE)
+
+pn <- st_read(here::here("data_raw/geoinfo/dist_pinus/Pnigra.shp")) %>% 
+  mutate(pinus = "nigra")
+pp <- st_read(here::here("data_raw/geoinfo/dist_pinus/Ppinaster.shp")) %>% 
+  mutate(pinus = "pinaster")
+ps <- st_read(here::here("data_raw/geoinfo/dist_pinus/Psylvestris.shp")) %>% 
+  mutate(pinus = "sylvestris")
+ppinea <- st_read(here::here("data_raw/geoinfo/dist_pinus/Ppinea.shp")) %>% 
+  mutate(pinus = "pinea")
+pr <- st_read(here::here("data_raw/geoinfo/dist_pinus/Pradiata.shp")) %>% 
+  mutate(pinus = "radiata")
+pc <- st_read(here::here("data_raw/geoinfo/dist_pinus/Pcanariensis.shp")) %>% 
+  mutate(pinus = "canariensis")
+
+
+iph <- st_intersection(st_make_valid(ph), rodales_t) %>% st_drop_geometry() %>% 
+  dplyr::select(Codigo, pinus) %>% unique() 
+
+ipp <- st_intersection(st_make_valid(pp), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+ips <- st_intersection(st_make_valid(ps), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+ipn <- st_intersection(st_make_valid(pn), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+ippinea <- st_intersection(st_make_valid(ppinea), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+ipc <- st_intersection(st_make_valid(pc), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+ipr <- st_intersection(st_make_valid(pr), rodales_t) %>% st_drop_geometry() %>% 
+    dplyr::select(Codigo, pinus) %>% unique() 
+
+
+u <- bind_rows(iph, ipp, ips, ipn, ipc, ipr, ippinea)
+
+u <- u %>% mutate(v = 1) %>% 
+  pivot_wider(names_from = pinus, values_from = v)
+
+
+i <- iph %>% dplyr::select(Codigo, pinus) %>% unique()
+
+```
+
+- 2. Usar datos procedentes de la base de datos antigua
+
+```{r}
+load(here::here("data_raw/mapa_rodales.RData"))
+
+parcela_sp <- mapa.rodales@data %>% dplyr::select(code = N.rodal, sp = Especie)
+
+```
+
+
+Le añadimos los pinos a la parcela
+
+```{r}
+coplas_sp <- coplas %>% inner_join(parcela_sp) %>% 
+  inner_join(parcelas) %>% 
+  dplyr::relocate(code, prov, area_ha, sp, elev_mean, elev_min, elev_max, elevF, perim, lat, long, `1993`:`2015`, `2016`, `2017`, `2018`, `2019`)
+
+write_csv(coplas_sp, here::here("data/coplas2019.csv"))
+```
+
+
+
 
 
 

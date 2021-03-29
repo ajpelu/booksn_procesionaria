@@ -1,0 +1,137 @@
+---
+title: "buffer SN"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("tidyverse")
+library("here")
+library("finch")
+library("sf")
+library("flextable")
+```
+
+# Leer datos de sn y crear buffer 
+
+```{r}
+sn <- st_read("/Users/ajpelu/Google Drive/_phd/_geoinfo/aux/sn_enp.shp") 
+
+```
+
+
+```{r}
+load(here::here("data_raw/mapa_rodales.RData"))
+rodales <- st_as_sf(mapa.rodales) %>% 
+  st_transform(crs = st_crs(sn)) %>% 
+  st_make_valid()
+```
+
+
+# Ver los rodales que están en cada buffer  
+
+```{r}
+
+bufferiza <- function(rodales, sn, d){ 
+
+  buffer <- st_buffer(sn, units::set_units(d, "km"))
+  namebuffer <- paste0('buffer_',d) 
+  df <- st_intersection(rodales, buffer) %>% 
+    st_drop_geometry() %>% 
+    dplyr::select(code = `N.rodal`) %>% 
+    mutate({{namebuffer}} := 1) 
+  return(df)
+}
+
+
+i25 <- bufferiza(rodales, sn, 25)
+i20 <- bufferiza(rodales, sn, 20)
+i15 <- bufferiza(rodales, sn, 15)
+i10 <- bufferiza(rodales, sn, 10)
+
+
+df <- i25 %>% 
+  full_join(i20) %>% 
+  full_join(i15) %>% 
+  full_join(i10) 
+  
+```
+
+```{r}
+coplas2019 <- read_csv(here::here("data/coplas2019.csv"))
+  
+df_elev <- df %>% 
+  left_join(coplas2019) %>% 
+  dplyr::select(code, buffer_25:buffer_10, sp, elevF)
+
+
+n_parcelas <- df_elev %>% 
+  group_by(elevF) %>%
+  summarise(across(starts_with('buf'), sum, na.rm = TRUE)) %>% 
+  filter(!is.na(elevF)) 
+
+
+```
+
+# Seleccion de parcelas
+- Seleccionamos buffer 20 km. 
+- Incluimos el piquito de Motril, es decir, las parcelas GR140011 y GR140013. 
+- Excluimos Sierra Alhamilla, i.e. algunas de las siguientes parcelas: AL088001,
+AL088002, AL088003, AL088004, AL088005, AL088006, AL078001, AL078002, AL078003, 
+AL074001, AL074002, AL013001, AL013002. 
+
+
+```{r}
+exclude <- c("AL088001", "AL088002", "AL088003", "AL088004", "AL088005", 
+            "AL088006", "AL078001", "AL078002", "AL078003", "AL074001", 
+            "AL074002", "AL013001", "AL013002")
+
+coplas.sn <- coplas2019 %>% 
+  left_join(i20) %>% 
+  filter(!(code %in% exclude)) %>% 
+  mutate(buffer_20 = case_when(
+    code %in% c("GR140011", "GR140013") ~ 1,
+    TRUE ~ buffer_20)) %>% 
+  filter(buffer_20 == 1) %>% 
+  dplyr::select(-buffer_20)
+
+write_csv(coplas.sn, here::here("data/coplas2019sn.csv"))
+
+```
+
+```{r}
+library(DiagrammeR)
+# see mermaid live editor 
+mermaid("
+graph TB
+  A[<center><strong>BD coplas</strong><br>n=4386</center>]-->|Buffer SN 20 km|B[<center>n=1055</center>]
+  B-->|Excluir S. Alhamilla|C[<center>n=1049</center>]
+  C-->|Añadir parcelas Motril|D[<center><strong>BD coplas SN</strong><br>n=1051</center>]
+")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
